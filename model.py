@@ -7,7 +7,7 @@ import shutil
 class TestModel:
     def __init__(self, filename="tests.json"):
         config_home = os.environ.get('XDG_CONFIG_HOME', os.path.expanduser('~/.config'))
-        self.config_dir = os.path.join(config_home, 'school-test-app')
+        self.config_dir = os.path.join(config_home, 'pretested')
         self.filepath = os.path.join(self.config_dir, filename)
 
         self._ensure_config_exists(filename)
@@ -24,10 +24,8 @@ class TestModel:
         if not os.path.exists(self.filepath):
             os.makedirs(self.config_dir, exist_ok=True)
             
-            # Locate default tests.json relative to the executable in Nix store
-            # Executable is in $out/bin/, asset is in $out/share/school-test-app/
             script_dir = os.path.dirname(os.path.abspath(__file__))
-            nix_default_path = os.path.join(script_dir, "..", "share", "school-test-app", filename)
+            nix_default_path = os.path.join(script_dir, "..", "share", "pretested", filename)
             
             # Fallback for local development if not running from Nix store
             local_default_path = filename

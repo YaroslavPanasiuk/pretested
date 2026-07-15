@@ -1,5 +1,5 @@
 {
-  description = "School test GTK4 app";
+  description = "Custom test GTK4 app";
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
   outputs = { self, nixpkgs }: let
