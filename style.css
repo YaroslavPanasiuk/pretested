@@ -1,0 +1,94 @@
+window {
+    background-color: #171c26;
+}
+button:hover {
+    background-image: none;
+    background-color: #fd5d33;
+    color: #fff;
+}
+
+checkbutton {
+    padding: 5px;
+    background-color: #1a202a;
+    background-image: none;
+}
+
+.main-container {
+    margin: 20px;
+    border-spacing: 15px;
+}
+
+.question-label {
+    font-size: 12pt;
+    margin-bottom: 10px;
+}
+
+.feedback-correct {
+    color: #2e8b57;
+    font-weight: bold;
+}
+
+.feedback-incorrect {
+    color: #cc0000;
+    font-weight: bold;
+}
+
+.nav-buttons {
+    margin-top: 10px;
+    border-spacing: 10px;
+}
+
+.result-title {
+    font-size: 18pt;
+    font-weight: bold;
+    color: #bfd2f8;
+    margin-top: 15px;
+}
+
+/* --- Test Selector Styles --- */
+.test-selector-container {
+    padding-bottom: 5px;
+}
+
+.test-btn {
+    padding: 5px 15px;
+    background-color: #1a202a;
+    color: #888;
+    border-radius: 5px;
+}
+
+.test-btn.active {
+    background-image: none; /* Overrides default GTK4 theme */
+    background-color: #fd5d33;
+    color: white;
+    font-weight: bold;
+}
+
+/* --- Navigation Grid Styles --- */
+.grid-nav-btn {
+    min-width: 30px;
+    min-height: 30px;
+    border-radius: 1px;
+    background-image: none;
+    border: 2px solid #1a202a;
+    font-weight: bold;
+}
+
+.grid-nav-btn.active {
+    border: 2px solid #fd5d33;
+}
+
+.grid-nav-btn.answered {
+    background-color: #fd5d3350;
+    color: white;
+}
+
+.grid-nav-btn.correct {
+    background-color: #2e8b57;
+    color: white;
+}
+
+.grid-nav-btn.incorrect {
+    background-color: #cc0000;
+    color: white;
+}

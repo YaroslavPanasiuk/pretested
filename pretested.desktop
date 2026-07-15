@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Pretested
+Comment=Custom test preparation application
+Exec=pretested
+Icon=pretested
+Categories=Education;Utility;
+Terminal=false
