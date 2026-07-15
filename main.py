@@ -10,7 +10,7 @@ from ui import TestWindow
 
 class TestApp(Gtk.Application):
     def __init__(self):
-        super().__init__(application_id="com.school.test")
+        super().__init__(application_id="com.pretested")
         self.model = TestModel()
 
     def do_startup(self):
