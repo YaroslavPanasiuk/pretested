@@ -11,6 +11,7 @@ checkbutton {
     padding: 5px;
     background-color: #1a202a;
     background-image: none;
+    font-size: 15pt;
 }
 
 .main-container {
@@ -24,7 +25,7 @@ checkbutton {
 }
 
 .options-container {
-    font-size: 14pt;
+    margin-top: 10px;
 }
 
 .feedback-correct {
@@ -82,8 +83,8 @@ checkbutton {
 .nav-btn {
     font-weight: bold;
     font-size: 14pt;
-    padding: 10px 35px;
-    min-width: 100px;
+    padding: 10px 25px;
+    min-width: 80px;
 }
 
 .grid-nav-btn.active {

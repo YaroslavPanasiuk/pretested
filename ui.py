@@ -66,7 +66,7 @@ class TestWindow(Gtk.ApplicationWindow):
         self.question_scroll = Gtk.ScrolledWindow()
         self.question_scroll.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
         self.question_scroll.set_propagate_natural_height(True)
-        self.question_scroll.set_size_request(-1, 250)
+        self.question_scroll.set_size_request(-1, 280)
         self.left_box.append(self.question_scroll)
         
         self.question_content_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
@@ -100,15 +100,15 @@ class TestWindow(Gtk.ApplicationWindow):
         self.prev_btn.connect("clicked", self.on_prev)
         self.nav_button_box.append(self.prev_btn)
 
+        self.check_btn = Gtk.Button(label="Check")
+        self.check_btn.add_css_class("nav-btn")
+        self.check_btn.connect("clicked", self.on_check_answer)
+        self.nav_button_box.append(self.check_btn)
+
         self.next_btn = Gtk.Button(label="Next")
         self.next_btn.add_css_class("nav-btn")
         self.next_btn.connect("clicked", self.on_next)
         self.nav_button_box.append(self.next_btn)
-
-        self.check_btn = Gtk.Button(label="Check Answer")
-        self.check_btn.add_css_class("nav-btn")
-        self.check_btn.connect("clicked", self.on_check_answer)
-        self.nav_button_box.append(self.check_btn)
 
         self.right_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=15)
         self.right_box.set_size_request(240, -1)
@@ -233,7 +233,7 @@ class TestWindow(Gtk.ApplicationWindow):
         first_button = None
         for opt in q_data["options"]:
             for key, val in opt.items():
-                cb = Gtk.CheckButton(label=f"{key}: {val}")
+                cb = Gtk.CheckButton(label=f"{val}")
                 if first_button:
                     cb.set_group(first_button)
                 else:
