@@ -2,6 +2,7 @@ import json
 import sys
 import os
 import random
+import copy 
 import shutil
 
 class TestModel:
@@ -56,13 +57,28 @@ class TestModel:
         self.reset_test()
 
     def reset_test(self):
-        self.questions = list(self.current_test["questions"])
+        # Use deepcopy to prevent mutating the original loaded JSON data
+        self.questions = copy.deepcopy(self.current_test["questions"])
         random.shuffle(self.questions)
+        
+        # Shuffle the options for each question
+        for q in self.questions:
+            if "options" in q:
+                random.shuffle(q["options"])
         
         self.current_q_idx = 0
         self.user_answers = {} 
         self.visited_questions = set()
+        self.checked_questions = set() 
         self.submitted = False
+
+    def check_current_answer(self):
+        self.checked_questions.add(self.current_q_idx)
+
+    def set_answer(self, key):
+        # Update this method to check for locks
+        if not self.submitted and self.current_q_idx not in self.checked_questions:
+            self.user_answers[self.current_q_idx] = key
 
     def get_total_questions(self):
         return len(self.questions)
@@ -72,10 +88,6 @@ class TestModel:
 
     def mark_visited(self):
         self.visited_questions.add(self.current_q_idx)
-
-    def set_answer(self, key):
-        if not self.submitted:
-            self.user_answers[self.current_q_idx] = key
 
     def get_answer(self, idx=None):
         if idx is None:
@@ -99,3 +111,22 @@ class TestModel:
         self.submitted = True
         score = sum(1 for i in range(self.get_total_questions()) if self.is_correct(i))
         return score, self.get_total_questions()
+    
+    def load_random_mixed_test(self, sample_size=30):
+        all_questions = []
+        for test in self.tests_data["tests"]:
+            all_questions.extend(test.get("questions", []))
+        
+        if sample_size == -1:
+            actual_sample_size = len(all_questions)
+        else:
+            actual_sample_size = min(sample_size, len(all_questions))
+        selected_questions = random.sample(all_questions, actual_sample_size)
+        
+        # Create a virtual test dictionary
+        self.current_test = {
+            "name": f"Random Mix ({sample_size})",
+            "questions": selected_questions
+        }
+
+        self.reset_test()

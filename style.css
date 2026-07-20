@@ -19,8 +19,12 @@ checkbutton {
 }
 
 .question-label {
-    font-size: 12pt;
+    font-size: 15pt;
     margin-bottom: 10px;
+}
+
+.options-container {
+    font-size: 14pt;
 }
 
 .feedback-correct {
@@ -55,6 +59,7 @@ checkbutton {
     background-color: #1a202a;
     color: #888;
     border-radius: 5px;
+    font-size: 13pt;
 }
 
 .test-btn.active {
@@ -72,6 +77,13 @@ checkbutton {
     background-image: none;
     border: 2px solid #1a202a;
     font-weight: bold;
+}
+
+.nav-btn {
+    font-weight: bold;
+    font-size: 14pt;
+    padding: 10px 35px;
+    min-width: 100px;
 }
 
 .grid-nav-btn.active {
