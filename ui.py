@@ -255,12 +255,12 @@ class TestWindow(Gtk.ApplicationWindow):
         # Show feedback if revealed
         if is_revealed:
             correct_ans = q_data["answer"]
+            answer_text = "".join([v for opt in q_data["options"] for k, v in opt.items() if k == correct_ans])
             if saved_answer == correct_ans:
                 self.feedback_label.set_text("You answered this correctly.")
                 self.feedback_label.add_css_class("feedback-correct")
             else:
-                user_text = saved_answer if saved_answer else "No answer"
-                self.feedback_label.set_text(f"Your answer: {user_text} | Correct answer: {correct_ans}")
+                self.feedback_label.set_text(f"Correct answer: {answer_text}")
                 self.feedback_label.add_css_class("feedback-incorrect")
 
         self.check_btn.set_sensitive(not is_revealed)
