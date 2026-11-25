@@ -22,23 +22,33 @@
         pkgs.gtk4
       ];
 
+      # Every copy below is load-bearing. An earlier version suffixed each with
+      # `|| true`, which turned a missing style.css or question bank into a
+      # silently broken package instead of a build failure.
       installPhase = ''
+        runHook preInstall
+
         mkdir -p $out/bin
         mkdir -p $out/share/applications
         mkdir -p $out/share/icons/hicolor/scalable/apps
         mkdir -p $out/share/pretested
-        
-        cp *.py $out/bin/
-        
-        cp style.css $out/bin/ 2>/dev/null || true
-        cp tests.json $out/share/pretested/ 2>/dev/null || true
-        
-        mv $out/bin/main.py $out/bin/pretested
-        chmod +x $out/bin/pretested
-        
-        cp pretested.desktop $out/share/applications/ 2>/dev/null || true
-        cp icon.svg $out/share/icons/hicolor/scalable/apps/pretested.svg 2>/dev/null || true
+
+        install -Dm644 model.py ui.py -t $out/bin/
+        install -Dm644 style.css -t $out/bin/
+        install -Dm755 main.py $out/bin/pretested
+
+        install -Dm644 tests.json -t $out/share/pretested/
+        install -Dm644 pretested.desktop -t $out/share/applications/
+        install -Dm644 icon.svg $out/share/icons/hicolor/scalable/apps/pretested.svg
+
+        runHook postInstall
       '';
+
+      meta = with pkgs.lib; {
+        description = "GTK4 app for drilling multiple-choice exam banks";
+        mainProgram = "pretested";
+        platforms = platforms.linux;
+      };
     };
 
     devShells.${system}.default = pkgs.mkShell {

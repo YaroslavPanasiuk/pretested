@@ -1,2 +1,13 @@
-flake.lock
+# Nix build symlinks (flake.lock IS tracked -- it is what makes builds reproducible)
 result
+result-*
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Local scratch dumps of the question bank
+output.txt
+temp.sh
+temp.txt
