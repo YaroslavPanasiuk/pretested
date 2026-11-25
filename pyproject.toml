@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pretested"
+version = "2.0.0"
+description = "GTK4 app for drilling multiple-choice exam banks"
+requires-python = ">=3.10"
+dependencies = ["pygobject"]
+
+[project.scripts]
+pretested = "pretested.app:main"
+
+[tool.setuptools]
+packages = ["pretested"]
+
+[tool.setuptools.package-data]
+pretested = ["style.css"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# The suite must stay free of GTK imports so it runs without a display.
+addopts = "-q"

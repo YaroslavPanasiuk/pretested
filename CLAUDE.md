@@ -4,67 +4,126 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-"Pretested" — a GTK4 (PyGObject) desktop quiz app for practising multiple-choice tests. Questions live in `tests.json` (Ukrainian-language university test banks). Packaged with Nix flakes; there is no test suite, linter, or CI.
+"Pretested" — a GTK4 (PyGObject) desktop quiz app for drilling multiple-choice
+exam banks, grouped into subjects that each hold several tests. Shipped banks
+are Ukrainian-language university tests. Packaged with Nix flakes. See
+`README.md` for user-facing behaviour, the bank format, and key bindings.
 
 ## Commands
 
 ```bash
-nix develop            # dev shell with python3+pygobject3, gtk4, gobject-introspection
-python3 main.py        # run from the repo (inside the dev shell)
-
-nix build              # builds ./result -> $out/bin/pretested
-nix run                # build + run
-
-python3 tmp.py tests.json > output.txt   # export all tests to printable text + answer keys
+nix develop                       # dev shell: python+pygobject, gtk4, pytest, xvfb-run
+nix develop -c python -m pretested  # run from the source tree
+nix develop -c pytest             # test suite (no display needed)
+nix develop -c pytest -k locks    # a single pattern
+nix build && ./result/bin/pretested
+nix flake check                   # builds the package and runs the suite
 ```
 
-Running outside `nix develop` generally fails: PyGObject needs `gi` plus the GTK4 typelibs on `GI_TYPELIB_PATH`.
+`import gi` fails outside `nix develop` — PyGObject needs the GTK4 typelibs on
+`GI_TYPELIB_PATH`. The dev shell ships `xvfb-run`, which is how to exercise the
+GTK layer without a window appearing on the user's screen:
+
+```bash
+nix develop -c xvfb-run -a python3 some_gtk_script.py   # set GDK_BACKEND=x11, unset WAYLAND_DISPLAY
+```
 
 ## Architecture
 
-Three modules, strict model/view split:
+`pretested/` is a package with a hard split: **only `ui.py` and `app.py` import
+GTK.** `library.py`, `attempt.py` and `results.py` are plain Python, which is
+what lets the suite run headlessly. Keep it that way — it is the property the
+tests depend on.
 
-- `main.py` — `Gtk.Application` subclass (app id `com.pretested`). Owns the `TestModel`, loads `style.css` into the default `Gdk.Display` at startup, creates the window on activate.
-- `model.py` — `TestModel`: all quiz state and logic (shuffling, answers, locking, scoring). No GTK imports.
-- `ui.py` — `TestWindow`: all widgets and signal handlers. Calls into the model and re-reads its state; it never stores quiz state of its own.
+| Module | Responsibility |
+|---|---|
+| `app.py` | `Gtk.Application`; loads CSS, builds the library and results store, reports a fatal `DataError` in a `Gtk.AlertDialog` |
+| `library.py` | Bank discovery, validation, parsing; `Subject`/`Test`/`Question`; question ids; legacy migration; import |
+| `attempt.py` | One sitting: shuffled questions, answers, lock/reveal rules, scoring |
+| `results.py` | `ResultsStore` — attempt log and per-question outcomes, atomically written |
+| `ui.py` | `TestWindow` — sidebar, test row, question pane, nav grid, key controller, import dialog |
 
-The UI has exactly two refresh entry points, and handlers should call one of them rather than mutating widgets directly:
+### The three UI refresh entry points
 
-- `rebuild_test_ui()` — after a test change/reset: re-styles the test-selector row and rebuilds the question-number nav grid, then calls `load_question_ui()`.
-- `load_question_ui()` — after navigation or answering: tears down and rebuilds the option `Gtk.CheckButton`s for the current question, sets feedback/sensitivity, and calls `update_nav_grid_styles()`.
+Handlers should call one of these rather than poking widgets directly. Each
+cascades into the next:
 
-Option radio grouping is done by `set_group(first_button)` on freshly created check buttons each time, because the options box is rebuilt from scratch per question.
+- `rebuild_subject_ui()` — sidebar rows, after the library changes (e.g. import).
+- `rebuild_test_ui()` — the test button row, after the subject changes. Also
+  refreshes score badges and retry-button sensitivity.
+- `load_question_ui()` — tears down and rebuilds the option `Gtk.CheckButton`s
+  for the current question, sets feedback and sensitivity, then calls
+  `update_nav_grid_styles()`.
 
-### Data file and config dir — important
+Option radio grouping is redone with `set_group(first_button)` on freshly
+created buttons each time, because the options box is rebuilt per question.
 
-`TestModel.__init__` copies the bundled `tests.json` to `$XDG_CONFIG_HOME/pretested/tests.json` (default `~/.config/pretested/`) **only if that file does not already exist**, then reads exclusively from there. So editing the repo's `tests.json` has no effect on an already-run install — delete the copy under `~/.config/pretested/` to pick up changes. The Nix build installs the default to `$out/share/pretested/tests.json`, which `_ensure_config_exists` finds via a `../share/pretested/` path relative to the script in `$out/bin`.
+`update_nav_grid_styles()` rewrites each button's **whole** class list
+(`grid-nav-btn` plus one of `correct`/`incorrect`/`answered`/`visited`/
+`unvisited`, plus `active`), so a new nav-grid state must be added there — and
+needs a matching rule in `style.css`, or it renders identically to its
+neighbours.
 
-### tests.json schema
+`self.active_token` identifies the live selector button, e.g. `("test", "ai_1")`
+or `("random", 50)`. Route every test start through `select_test()` so the
+highlight cannot drift from the running attempt.
 
-```json
-{"tests": [{"name": "...", "questions": [
-  {"question": "...",
-   "options": [{"А": "text"}, {"Б": "text"}],
-   "answer": "Г"}
-]}]}
-```
+### Data locations
 
-Each option is a single-key dict mapping an answer key to its text; `answer` holds the key. Keys are Cyrillic letters (А/Б/В/Г) in the current data — don't assume ASCII. Code that iterates options uses the `for key, val in opt.items()` idiom throughout.
+| What | Where |
+|---|---|
+| Bundled banks | `data/subjects/*.json`; installed to `$out/share/pretested/subjects/` |
+| User banks | `$XDG_DATA_HOME/pretested/subjects/` |
+| Results | `$XDG_DATA_HOME/pretested/results.json` |
 
-### Answer-reveal / locking model
+`bundled_subjects_dirs()` walks up from the package directory looking for
+`data/subjects` or `share/pretested/subjects`, so the same code resolves a
+source checkout and a Nix store path. `PRETESTED_DATA_DIR` overrides it.
 
-An answer is revealed when `model.submitted` is true **or** the question index is in `model.checked_questions` (per-question "Check" button). Revealing is one-way and locks that question: `set_answer()` refuses writes for checked or submitted questions, and `load_question_ui()` desensitizes its options. `reset_test()` is the only way back.
+User files **shadow** bundled ones by filename stem. `~/.config/pretested/` no
+longer holds bank data; a one-shot idempotent migration rescues hand edits from
+the old `tests.json` and renames it aside.
 
-`reset_test()` reshuffles questions *and* each question's options via `copy.deepcopy` of the source questions, so the original `tests_data` is never mutated. Because of the shuffle, question/option indices are only valid within one attempt.
+### Question identity
 
-### Random mixed tests
+`question_id()` is `sha1(question_text)[:12]`. Content-addressed deliberately:
+it needed no edits to the 560 shipped questions and survives shuffling and
+reordering, which is what keeps results attached to a question. Rewording a
+question resets its history. A test asserts all shipped ids are unique — a
+collision would silently merge two questions' results.
 
-"Rand 20/50/100/all" call `load_random_mixed_test(sample_size)` (`-1` = all questions from every test), which pools questions across all tests and installs a synthetic `current_test` dict. `ui.py` fakes `model.current_test_idx` to the random button's position in `self.test_buttons` so the selector highlight works — `current_test_idx` is therefore not a valid index into `tests_data["tests"]` while a random mix is active.
+### Lock and reveal rules
 
-## Styling
+A question is revealed when the attempt is submitted **or** its index is in
+`attempt.checked`. Revealing is one-way and locks that question: `set_answer()`
+refuses writes and the options are desensitized. `can_check()` additionally
+requires an answer to be selected — checking an unanswered question used to lock
+it and score it wrong with no escape. `reset()` is the only way back.
 
-All visual styling is in `style.css`, applied via `add_css_class` / `set_css_classes`. `update_nav_grid_styles()` rewrites the whole class list per button (`grid-nav-btn` + one of `correct`/`incorrect`/`answered`/`visited`/`unvisited`, plus `active`), so new nav-grid states must be added there, not appended elsewhere.
+### Bank format gotchas
 
-## Untracked scratch files
+Each option is a single-key dict; `answer` holds the key. Shipped keys are
+Cyrillic `А`/`Б`/`В`/`Г` — do not assume ASCII. Keyboard option selection is
+therefore **positional** (`1`–`8`) with the printed letter as a secondary path,
+so the app stays drillable on a Latin-only layout.
 
-`output.txt`, `temp.sh`, `temp.txt` are generated/experimental dumps of the question bank, not part of the app. Leave them alone; don't treat `temp.sh` as a build script.
+### Attempt modes
+
+`MODE_TEST`, `MODE_RANDOM`, `MODE_WRONG` (`attempt.py`). Mode only affects
+presentation and recording; the quiz flow is identical. A retry pool passes
+`test_key=None` so it logs no score against any test — `results.py` skips the
+attempt log for a falsy key but still records per-question outcomes.
+
+`wrong_question_ids()` returns questions whose **most recent** answer was wrong,
+so fixing one removes it from the pool and missing it again restores it.
+
+## Conventions
+
+- Results are derived state: a missing or corrupt `results.json` degrades to
+  empty rather than stopping the app. The banks are the valuable data.
+- `ResultsStore.save()` writes to a temp file and `os.replace()`s it.
+- Never `sys.exit()` from library code — raise `DataError`; `app.py` surfaces it
+  in a dialog, since nobody sees stderr from a desktop launcher.
+- Every `install` in the flake's `postInstall` is load-bearing; do not add
+  `|| true`, which previously turned missing files into a silently broken
+  package.

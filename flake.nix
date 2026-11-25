@@ -1,55 +1,43 @@
 {
-  description = "Custom test GTK4 app";
+  description = "GTK4 app for drilling multiple-choice exam banks";
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
   outputs = { self, nixpkgs }: let
     system = "x86_64-linux";
     pkgs = nixpkgs.legacyPackages.${system};
-    pythonPkgs = pkgs.python3.withPackages (ps: with ps; [ pygobject3 ]);
+    python3Packages = pkgs.python3Packages;
+    pythonPkgs = pkgs.python3.withPackages (ps: with ps; [ pygobject3 pytest ]);
   in {
-    packages.${system}.default = pkgs.stdenv.mkDerivation {
+    packages.${system}.default = python3Packages.buildPythonApplication {
       pname = "pretested";
-      version = "1.0.0";
+      version = "2.0.0";
       src = ./.;
+      pyproject = true;
+
+      build-system = [ python3Packages.setuptools ];
+      dependencies = [ python3Packages.pygobject3 ];
 
       nativeBuildInputs = [
         pkgs.gobject-introspection
         pkgs.wrapGAppsHook4
       ];
 
-      buildInputs = [
-        pythonPkgs
-        pkgs.gtk4
-      ];
+      buildInputs = [ pkgs.gtk4 ];
 
-      # Every copy below is load-bearing. An earlier version suffixed each with
-      # `|| true`, which turned a missing style.css or question bank into a
-      # silently broken package instead of a build failure.
-      installPhase = ''
-        runHook preInstall
+      # wrapGAppsHook4 and the Python wrapper would otherwise wrap the entry
+      # point twice; the nixpkgs idiom is to let makeWrapper do it once with
+      # the GApps arguments folded in.
+      dontWrapGApps = true;
+      makeWrapperArgs = [ "\${gappsWrapperArgs[@]}" ];
 
-        mkdir -p $out/bin $out/lib
-        mkdir -p $out/share/applications
-        mkdir -p $out/share/icons/hicolor/scalable/apps
-        mkdir -p $out/share/pretested/subjects
+      # library, attempt and results import no GTK, so the suite runs here
+      # without a display.
+      nativeCheckInputs = [ python3Packages.pytestCheckHook ];
 
-        cp -r pretested $out/lib/
-        rm -rf $out/lib/pretested/__pycache__
+      postInstall = ''
         install -Dm644 data/subjects/*.json -t $out/share/pretested/subjects/
-
-        cat > $out/bin/pretested <<EOF
-#!${pythonPkgs}/bin/python3
-import sys
-sys.path.insert(0, "$out/lib")
-from pretested.app import main
-sys.exit(main())
-EOF
-        chmod +x $out/bin/pretested
-
         install -Dm644 pretested.desktop -t $out/share/applications/
         install -Dm644 icon.svg $out/share/icons/hicolor/scalable/apps/pretested.svg
-
-        runHook postInstall
       '';
 
       meta = with pkgs.lib; {
@@ -59,11 +47,28 @@ EOF
       };
     };
 
+    checks.${system} = {
+      # Builds the package, which runs the suite in its check phase.
+      package = self.packages.${system}.default;
+
+      # A standalone run of the suite, needing no GTK closure.
+      pytest = pkgs.runCommand "pretested-pytest" {
+        nativeBuildInputs = [ python3Packages.pytest ];
+      } ''
+        cp -r ${./.} src
+        chmod -R +w src
+        cd src
+        pytest
+        touch $out
+      '';
+    };
+
     devShells.${system}.default = pkgs.mkShell {
       packages = [
         pythonPkgs
         pkgs.gtk4
         pkgs.gobject-introspection
+        pkgs.xvfb-run
       ];
     };
   };
