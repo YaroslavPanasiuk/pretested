@@ -1,5 +1,12 @@
 window {
     background-color: #171c26;
+    color: #e6ebf5;
+}
+
+/* The palette below is deliberately dark; set every foreground explicitly so a
+   light system theme cannot leave dark text on the dark background. */
+label {
+    color: #e6ebf5;
 }
 button:hover {
     background-image: none;
@@ -12,6 +19,16 @@ checkbutton {
     background-color: #1a202a;
     background-image: none;
     font-size: 15pt;
+    color: #e6ebf5;
+}
+
+checkbutton:disabled label {
+    color: #8c97ab;
+}
+
+button {
+    color: #e6ebf5;
+    background-color: #1a202a;
 }
 
 .main-container {
@@ -22,6 +39,7 @@ checkbutton {
 .question-label {
     font-size: 15pt;
     margin-bottom: 10px;
+    color: #e6ebf5;
 }
 
 .options-container {
@@ -89,6 +107,16 @@ checkbutton {
 
 .grid-nav-btn.active {
     border: 2px solid #fd5d33;
+}
+
+.grid-nav-btn.unvisited {
+    background-color: #1a202a;
+    color: #6b7689;
+}
+
+.grid-nav-btn.visited {
+    background-color: #222b38;
+    color: #bfd2f8;
 }
 
 .grid-nav-btn.answered {

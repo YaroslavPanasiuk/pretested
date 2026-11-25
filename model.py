@@ -1,9 +1,13 @@
 import json
-import sys
 import os
 import random
-import copy 
+import copy
 import shutil
+
+
+class DataError(Exception):
+    """Raised when the question bank is missing or malformed."""
+
 
 class TestModel:
     def __init__(self, filename="tests.json"):
@@ -15,9 +19,11 @@ class TestModel:
 
         self.tests_data = self._load_tests(self.filepath)
         if not self.tests_data or "tests" not in self.tests_data:
-            print(f"Error: Invalid or missing file at {self.filepath}")
-            sys.exit(1)
-            
+            raise DataError(f"Invalid or missing question bank at {self.filepath}")
+        if not self.tests_data["tests"]:
+            raise DataError(f"No tests found in {self.filepath}")
+
+
         self.current_test_idx = 0
         self.load_test(0)
 
@@ -44,9 +50,8 @@ class TestModel:
         try:
             with open(filepath, "r", encoding="utf-8") as f:
                 return json.load(f)
-        except Exception as e:
-            print(f"Error loading {filepath}: {e}")
-            return None
+        except (OSError, json.JSONDecodeError) as e:
+            raise DataError(f"Could not read {filepath}: {e}") from e
 
     def get_test_names(self):
         return [t["name"] for t in self.tests_data["tests"]]
@@ -72,8 +77,21 @@ class TestModel:
         self.checked_questions = set() 
         self.submitted = False
 
+    def can_check(self):
+        # Checking reveals the answer and locks the question for good, so refuse
+        # it while nothing is selected -- otherwise a stray click scores the
+        # question wrong with no way back short of a full reset.
+        return (
+            not self.submitted
+            and self.current_q_idx not in self.checked_questions
+            and self.get_answer() is not None
+        )
+
     def check_current_answer(self):
+        if not self.can_check():
+            return False
         self.checked_questions.add(self.current_q_idx)
+        return True
 
     def set_answer(self, key):
         # Update this method to check for locks

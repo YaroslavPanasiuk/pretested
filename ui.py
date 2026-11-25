@@ -8,7 +8,7 @@ class TestWindow(Gtk.ApplicationWindow):
         self.model = model
         self.set_default_size(800, 600)
         self.set_title("Pretested")
-        self.set_icon_name("pretested-app")
+        self.set_icon_name("pretested")
 
         self.box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self.box.add_css_class("main-container")
@@ -31,29 +31,16 @@ class TestWindow(Gtk.ApplicationWindow):
             self.test_box.append(btn)
             self.test_buttons.append(btn)
 
-        self.random_test_btn_20 = Gtk.Button(label="Rand 20")
-        self.random_test_btn_20.add_css_class("test-btn")
-        self.random_test_btn_20.connect("clicked", self.on_random_test_selected, 20)
-        self.test_box.append(self.random_test_btn_20)
-        self.test_buttons.append(self.random_test_btn_20)
-
-        self.random_test_btn_50 = Gtk.Button(label="Rand 50")
-        self.random_test_btn_50.add_css_class("test-btn")
-        self.random_test_btn_50.connect("clicked", self.on_random_test_selected, 50)
-        self.test_box.append(self.random_test_btn_50)
-        self.test_buttons.append(self.random_test_btn_50)
-
-        self.random_test_btn_100 = Gtk.Button(label="Rand 100")
-        self.random_test_btn_100.add_css_class("test-btn")
-        self.random_test_btn_100.connect("clicked", self.on_random_test_selected, 100)
-        self.test_box.append(self.random_test_btn_100)
-        self.test_buttons.append(self.random_test_btn_100)
-
-        self.random_test_btn_all = Gtk.Button(label="Rand all")
-        self.random_test_btn_all.add_css_class("test-btn")
-        self.random_test_btn_all.connect("clicked", self.on_random_test_selected, -1)
-        self.test_box.append(self.random_test_btn_all)
-        self.test_buttons.append(self.random_test_btn_all)
+        for label, count in (("Rand 20", 20), ("Rand 50", 50),
+                             ("Rand 100", 100), ("Rand all", -1)):
+            btn = Gtk.Button(label=label)
+            btn.add_css_class("test-btn")
+            # The selector index is captured here; deriving it from button
+            # identity at click time left it unbound for any other caller.
+            btn.connect("clicked", self.on_random_test_selected,
+                        count, len(self.test_buttons))
+            self.test_box.append(btn)
+            self.test_buttons.append(btn)
 
         self.split_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=20)
         self.split_box.set_vexpand(True)
@@ -141,22 +128,14 @@ class TestWindow(Gtk.ApplicationWindow):
         self.model.load_test(index)
         self.rebuild_test_ui()
 
-    def on_random_test_selected(self, button, count=30):
-        if button == self.random_test_btn_20:
-            idx = len(self.test_buttons) - 4
-        elif button == self.random_test_btn_50:
-            idx = len(self.test_buttons) - 3
-        elif button == self.random_test_btn_100:
-            idx = len(self.test_buttons) - 2
-        elif button == self.random_test_btn_all:
-            idx = len(self.test_buttons) - 1
+    def on_random_test_selected(self, button, count, idx):
         self.model.current_test_idx = idx
         self.model.load_random_mixed_test(sample_size=count)
         self.rebuild_test_ui()
 
     def on_check_answer(self, button):
-        self.model.check_current_answer()
-        self.load_question_ui()
+        if self.model.check_current_answer():
+            self.load_question_ui()
         
     def on_reset(self, button):
         self.model.reset_test()
@@ -263,7 +242,7 @@ class TestWindow(Gtk.ApplicationWindow):
                 self.feedback_label.set_text(f"Correct answer: {answer_text}")
                 self.feedback_label.add_css_class("feedback-incorrect")
 
-        self.check_btn.set_sensitive(not is_revealed)
+        self.check_btn.set_sensitive(self.model.can_check())
         self.prev_btn.set_sensitive(self.model.current_q_idx > 0)
         self.next_btn.set_sensitive(self.model.current_q_idx < self.model.get_total_questions() - 1)
         self.update_nav_grid_styles()
@@ -271,6 +250,7 @@ class TestWindow(Gtk.ApplicationWindow):
     def on_option_toggled(self, button, key):
         if button.get_active() and not self.model.submitted:
             self.model.set_answer(key)
+            self.check_btn.set_sensitive(self.model.can_check())
             self.update_nav_grid_styles()
 
     def on_nav_grid_clicked(self, button, index):

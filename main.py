@@ -5,13 +5,13 @@ import gi
 gi.require_version('Gtk', '4.0')
 from gi.repository import Gtk, Gdk
 
-from model import TestModel
+from model import TestModel, DataError
 from ui import TestWindow
 
 class TestApp(Gtk.Application):
     def __init__(self):
         super().__init__(application_id="com.pretested")
-        self.model = TestModel()
+        self.model = None
 
     def do_startup(self):
         Gtk.Application.do_startup(self)
@@ -20,7 +20,7 @@ class TestApp(Gtk.Application):
     def load_css(self):
         css_provider = Gtk.CssProvider()
         css_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "style.css")
-        
+
         if not os.path.exists(css_path):
             css_path = "style.css"
 
@@ -37,8 +37,32 @@ class TestApp(Gtk.Application):
     def do_activate(self):
         win = self.props.active_window
         if not win:
+            # Load the bank here rather than in __init__ so a failure can be
+            # reported in a dialog -- nobody sees a message printed to stderr.
+            if self.model is None:
+                try:
+                    self.model = TestModel()
+                except DataError as e:
+                    self.show_fatal_error(str(e))
+                    return
             win = TestWindow(app=self, model=self.model)
         win.present()
+
+    def show_fatal_error(self, message):
+        # hold() keeps the application alive while the dialog is up; without a
+        # window on screen GApplication would otherwise exit immediately.
+        self.hold()
+        dialog = Gtk.AlertDialog()
+        dialog.set_modal(True)
+        dialog.set_message("Cannot start Pretested")
+        dialog.set_detail(message)
+        dialog.set_buttons(["Quit"])
+
+        def on_dismissed(*_args):
+            self.release()
+            self.quit()
+
+        dialog.choose(None, None, on_dismissed)
 
 if __name__ == "__main__":
     app = TestApp()
