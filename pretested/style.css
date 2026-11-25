@@ -32,8 +32,52 @@ button {
 }
 
 .main-container {
-    margin: 20px;
     border-spacing: 15px;
+}
+
+.content-pane {
+    margin: 20px;
+}
+
+/* --- Subject sidebar --- */
+.sidebar {
+    background-color: #12161f;
+    padding: 20px 10px;
+    border-right: 1px solid #222b38;
+}
+
+.sidebar-title {
+    font-size: 11pt;
+    font-weight: bold;
+    color: #6b7689;
+    margin-bottom: 5px;
+    padding-left: 8px;
+}
+
+.subject-list {
+    background-color: transparent;
+}
+
+.subject-row {
+    padding: 10px 8px;
+    border-radius: 5px;
+    font-size: 12pt;
+    color: #bfd2f8;
+}
+
+.subject-row:selected {
+    background-color: #fd5d33;
+    color: #fff;
+    font-weight: bold;
+}
+
+.subject-row:selected label {
+    color: #fff;
+}
+
+.progress-label {
+    font-size: 10pt;
+    color: #6b7689;
 }
 
 .question-label {

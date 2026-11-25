@@ -28,16 +28,24 @@
       installPhase = ''
         runHook preInstall
 
-        mkdir -p $out/bin
+        mkdir -p $out/bin $out/lib
         mkdir -p $out/share/applications
         mkdir -p $out/share/icons/hicolor/scalable/apps
-        mkdir -p $out/share/pretested
+        mkdir -p $out/share/pretested/subjects
 
-        install -Dm644 model.py ui.py -t $out/bin/
-        install -Dm644 style.css -t $out/bin/
-        install -Dm755 main.py $out/bin/pretested
+        cp -r pretested $out/lib/
+        rm -rf $out/lib/pretested/__pycache__
+        install -Dm644 data/subjects/*.json -t $out/share/pretested/subjects/
 
-        install -Dm644 tests.json -t $out/share/pretested/
+        cat > $out/bin/pretested <<EOF
+#!${pythonPkgs}/bin/python3
+import sys
+sys.path.insert(0, "$out/lib")
+from pretested.app import main
+sys.exit(main())
+EOF
+        chmod +x $out/bin/pretested
+
         install -Dm644 pretested.desktop -t $out/share/applications/
         install -Dm644 icon.svg $out/share/icons/hicolor/scalable/apps/pretested.svg
 
