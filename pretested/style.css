@@ -75,6 +75,25 @@ button {
     color: #fff;
 }
 
+.sidebar-btn {
+    font-size: 10pt;
+    padding: 6px;
+    color: #bfd2f8;
+}
+
+.test-score {
+    font-size: 10pt;
+    color: #8c97ab;
+}
+
+.test-btn.active .test-score {
+    color: #ffe3d9;
+}
+
+.retry-btn {
+    font-size: 11pt;
+}
+
 .progress-label {
     font-size: 10pt;
     color: #6b7689;

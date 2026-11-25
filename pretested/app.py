@@ -3,9 +3,11 @@ import sys
 
 import gi
 gi.require_version('Gtk', '4.0')
-from gi.repository import Gtk, Gdk
+gi.require_version('Gdk', '4.0')
+from gi.repository import Gdk, Gtk
 
 from .library import DataError, load_library
+from .results import ResultsStore
 from .ui import TestWindow
 
 
@@ -13,6 +15,7 @@ class TestApp(Gtk.Application):
     def __init__(self):
         super().__init__(application_id="com.pretested")
         self.library = None
+        self.results = None
 
     def do_startup(self):
         Gtk.Application.do_startup(self)
@@ -46,7 +49,10 @@ class TestApp(Gtk.Application):
                     return
                 for problem in self.library.problems:
                     print(f"Warning: skipped a question bank -- {problem}")
-            win = TestWindow(app=self, library=self.library)
+            if self.results is None:
+                self.results = ResultsStore()
+            win = TestWindow(app=self, library=self.library,
+                             results=self.results)
         win.present()
 
     def show_fatal_error(self, message):

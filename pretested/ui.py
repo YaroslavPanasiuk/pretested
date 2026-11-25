@@ -1,11 +1,25 @@
+import os
+
 import gi
 gi.require_version('Gtk', '4.0')
-from gi.repository import Gtk
+gi.require_version('Gdk', '4.0')
+from gi.repository import Gdk, Gio, GLib, Gtk
 
-from .attempt import Attempt, MODE_RANDOM, MODE_TEST, sample_questions
+from .attempt import (Attempt, MODE_RANDOM, MODE_TEST, MODE_WRONG,
+                      sample_questions)
+from .library import DataError, import_subject_file, load_library
 
 RANDOM_SIZES = (("Rand 20", 20), ("Rand 50", 50),
                 ("Rand 100", 100), ("Rand all", -1))
+
+# Keys that pick an option by position, so a shuffled bank is still drillable
+# from the keyboard regardless of what the option letters happen to be.
+POSITION_KEYS = {
+    Gdk.KEY_1: 0, Gdk.KEY_2: 1, Gdk.KEY_3: 2, Gdk.KEY_4: 3,
+    Gdk.KEY_5: 4, Gdk.KEY_6: 5, Gdk.KEY_7: 6, Gdk.KEY_8: 7,
+    Gdk.KEY_KP_1: 0, Gdk.KEY_KP_2: 1, Gdk.KEY_KP_3: 2, Gdk.KEY_KP_4: 3,
+    Gdk.KEY_KP_5: 4, Gdk.KEY_KP_6: 5, Gdk.KEY_KP_7: 6, Gdk.KEY_KP_8: 7,
+}
 
 
 class TestWindow(Gtk.ApplicationWindow):
@@ -17,11 +31,15 @@ class TestWindow(Gtk.ApplicationWindow):
       load_question_ui()    -> question pane, after navigating or answering
     """
 
-    def __init__(self, app, library):
+    def __init__(self, app, library, results):
         super().__init__(application=app)
         self.library = library
+        self.results = results
         self.subject = None
         self.attempt = None
+        # Maps a typed character to an option position for the current
+        # question, so the printed option letters work as shortcuts too.
+        self.option_key_map = {}
         # Identifies which selector button is currently active, e.g.
         # ("test", "ai_1") or ("random", 50). Replaces the old trick of faking
         # a model index to point at a Rand button's position.
@@ -56,6 +74,11 @@ class TestWindow(Gtk.ApplicationWindow):
         self.subject_list.set_selection_mode(Gtk.SelectionMode.SINGLE)
         self.subject_list.connect("row-selected", self.on_subject_selected)
         self.sidebar_scroll.set_child(self.subject_list)
+
+        self.import_btn = Gtk.Button(label="Import bank…")
+        self.import_btn.add_css_class("sidebar-btn")
+        self.import_btn.connect("clicked", self.on_import_clicked)
+        self.sidebar_box.append(self.import_btn)
 
         # -- main column ---------------------------------------------------
         self.main_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
@@ -160,6 +183,20 @@ class TestWindow(Gtk.ApplicationWindow):
         self.reset_btn.connect("clicked", self.on_reset)
         self.action_button_box.append(self.reset_btn)
 
+        self.retry_subject_btn = Gtk.Button(label="Retry wrong (subject)")
+        self.retry_subject_btn.add_css_class("retry-btn")
+        self.retry_subject_btn.connect("clicked", self.on_retry_wrong, False)
+        self.action_button_box.append(self.retry_subject_btn)
+
+        self.retry_all_btn = Gtk.Button(label="Retry wrong (all subjects)")
+        self.retry_all_btn.add_css_class("retry-btn")
+        self.retry_all_btn.connect("clicked", self.on_retry_wrong, True)
+        self.action_button_box.append(self.retry_all_btn)
+
+        key_controller = Gtk.EventControllerKey()
+        key_controller.connect("key-pressed", self.on_key_pressed)
+        self.add_controller(key_controller)
+
         self.rebuild_subject_ui()
 
     # ----------------------------------------------------------------------
@@ -211,9 +248,21 @@ class TestWindow(Gtk.ApplicationWindow):
             return
 
         for test in self.subject.tests:
-            btn = Gtk.Button(label=test.name)
+            btn = Gtk.Button()
             btn.add_css_class("test-btn")
             btn.token = (MODE_TEST, test.id)
+
+            # A button holds the test name plus the last score for it, so
+            # previous results are visible without opening the test.
+            content = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+            content.append(Gtk.Label(label=test.name))
+            score_label = Gtk.Label()
+            score_label.add_css_class("test-score")
+            content.append(score_label)
+            btn.set_child(content)
+            btn.score_label = score_label
+            btn.test_key = test.key
+
             btn.connect("clicked", self.on_test_selected, test)
             self.test_box.append(btn)
             self.test_buttons.append(btn)
@@ -226,10 +275,35 @@ class TestWindow(Gtk.ApplicationWindow):
             self.test_box.append(btn)
             self.test_buttons.append(btn)
 
+        self.update_test_scores()
+        self.update_retry_sensitivity()
+
         if self.active_token is None and self.subject.tests:
             self.select_test(self.subject.tests[0])
         else:
             self.update_selector_styles()
+
+    def update_test_scores(self):
+        for btn in self.test_buttons:
+            label = getattr(btn, "score_label", None)
+            if label is None:
+                continue
+            last = self.results.last_attempt(btn.test_key)
+            label.set_text(f"{last['score']}/{last['total']}" if last else "")
+
+    def update_retry_sensitivity(self):
+        self.retry_subject_btn.set_sensitive(bool(self.wrong_questions(False)))
+        self.retry_all_btn.set_sensitive(bool(self.wrong_questions(True)))
+
+    def wrong_questions(self, across_all_subjects):
+        """Questions whose most recent answer was wrong, newest results first."""
+        wrong_ids = self.results.wrong_question_ids()
+        if not wrong_ids:
+            return []
+        subject_id = None if across_all_subjects else (
+            self.subject.id if self.subject else None)
+        by_id = self.library.questions_by_id(subject_id)
+        return [by_id[qid] for qid in wrong_ids if qid in by_id]
 
     def update_selector_styles(self):
         for btn in self.test_buttons:
@@ -329,6 +403,7 @@ class TestWindow(Gtk.ApplicationWindow):
 
         self.current_buttons.clear()
         self.ordered_buttons = []
+        self.option_key_map = {}
 
         is_revealed = self.attempt.is_revealed()
 
@@ -342,6 +417,7 @@ class TestWindow(Gtk.ApplicationWindow):
 
             self.current_buttons[key] = cb
             self.ordered_buttons.append(cb)
+            self.option_key_map[key.lower()] = position - 1
             cb.connect("toggled", self.on_option_toggled, key)
 
             if is_revealed:
@@ -402,4 +478,130 @@ class TestWindow(Gtk.ApplicationWindow):
         score, total = self.attempt.submit()
         self.submit_btn.set_sensitive(False)
         self.score_label.set_text(f"Test Complete! Final Score: {score} / {total}")
+
+        self.results.record_attempt(
+            self.attempt.test_key, score, total, self.attempt.outcomes(),
+            title=self.attempt.title, mode=self.attempt.mode,
+        )
+        self.update_test_scores()
+        self.update_retry_sensitivity()
         self.load_question_ui()
+
+    # ----------------------------------------------------------------------
+    # Retry wrong answers
+    # ----------------------------------------------------------------------
+
+    def on_retry_wrong(self, button, across_all_subjects):
+        questions = self.wrong_questions(across_all_subjects)
+        if not questions:
+            self.update_retry_sensitivity()
+            return
+
+        scope = "all subjects" if across_all_subjects else self.subject.name
+        self.active_token = (MODE_WRONG, across_all_subjects)
+        self.start_attempt(Attempt(
+            questions,
+            title=f"Wrong answers — {scope} ({len(questions)})",
+            mode=MODE_WRONG,
+            subject_id=None if across_all_subjects else self.subject.id,
+            test_key=None,  # a retry pool is not a test, so it logs no score
+        ))
+
+    # ----------------------------------------------------------------------
+    # Importing a bank
+    # ----------------------------------------------------------------------
+
+    def on_import_clicked(self, button):
+        dialog = Gtk.FileDialog()
+        dialog.set_title("Import a subject bank")
+
+        json_filter = Gtk.FileFilter()
+        json_filter.set_name("Subject bank (JSON)")
+        json_filter.add_pattern("*.json")
+
+        filter_model = Gio.ListStore.new(Gtk.FileFilter)
+        filter_model.append(json_filter)
+        dialog.set_filters(filter_model)
+        dialog.set_default_filter(json_filter)
+
+        dialog.open(self, None, self.on_import_chosen)
+
+    def on_import_chosen(self, dialog, result):
+        try:
+            gfile = dialog.open_finish(result)
+        except GLib.Error:
+            return  # the user cancelled
+        if gfile is None:
+            return
+
+        path = gfile.get_path()
+        if not path:
+            self.show_message("Import failed", "That file is not on the local filesystem.")
+            return
+
+        try:
+            dest = import_subject_file(path)
+        except DataError as e:
+            self.show_message("That file is not a usable subject bank", str(e))
+            return
+
+        try:
+            self.library = load_library()
+        except DataError as e:
+            self.show_message("Could not reload banks", str(e))
+            return
+
+        self.rebuild_subject_ui()
+        self.show_message("Bank imported",
+                          f"Imported as {os.path.basename(dest)}.")
+
+    def show_message(self, heading, detail):
+        dialog = Gtk.AlertDialog()
+        dialog.set_modal(True)
+        dialog.set_message(heading)
+        dialog.set_detail(detail)
+        dialog.set_buttons(["OK"])
+        dialog.choose(self, None, None)
+
+    # ----------------------------------------------------------------------
+    # Keyboard
+    # ----------------------------------------------------------------------
+
+    def on_key_pressed(self, controller, keyval, keycode, state):
+        """Drive the quiz from the keyboard. Returns True only when handled."""
+        if self.attempt is None:
+            return False
+
+        ctrl = bool(state & Gdk.ModifierType.CONTROL_MASK)
+
+        if keyval in (Gdk.KEY_Return, Gdk.KEY_KP_Enter):
+            if ctrl:
+                if self.submit_btn.get_sensitive():
+                    self.submit_btn.emit("clicked")
+                return True
+            if self.check_btn.get_sensitive():
+                self.check_btn.emit("clicked")
+            return True
+
+        if keyval in (Gdk.KEY_Left, Gdk.KEY_Page_Up):
+            self.on_prev(None)
+            return True
+
+        if keyval in (Gdk.KEY_Right, Gdk.KEY_Page_Down):
+            self.on_next(None)
+            return True
+
+        position = POSITION_KEYS.get(keyval)
+        if position is None:
+            # Also accept the option letter as printed, whatever alphabet it
+            # is in -- but only if the layout actually produced that character.
+            char = chr(Gdk.keyval_to_unicode(keyval) or 0).lower()
+            position = self.option_key_map.get(char)
+
+        if position is not None and position < len(self.ordered_buttons):
+            button = self.ordered_buttons[position]
+            if button.get_sensitive():
+                button.set_active(True)
+            return True
+
+        return False
