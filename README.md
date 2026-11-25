@@ -1,7 +1,8 @@
 # Pretested
 
 A GTK4 desktop app for drilling multiple-choice exam banks. Questions are
-grouped into **subjects**, each holding one or more **tests**. It shuffles
+grouped into **subjects**, each holding one or more **tests**. The repo ships
+one subject, *Методологія наукових досліджень*, with 8 tests (660 questions). It shuffles
 questions and options on every attempt, can reveal a single answer or score a
 whole test, remembers your results between sessions, and can re-serve exactly
 the questions you got wrong.
@@ -106,7 +107,9 @@ into `data/subjects/` to ship it with the app. The format:
 - `id` is optional on subjects and tests and falls back to a slug of the name.
 - Questions carry no id. Identity is a hash of the question text, which is what
   attaches your results to a question across shuffles and reordering. Rewording
-  a question deliberately starts its history over.
+  a question deliberately starts its history over. The same question appearing
+  in two tests therefore shares one history, even if the distractors differ —
+  answering it correctly in one counts for the other.
 
 Imports are validated before being accepted, and a malformed file is reported
 with the specific problem rather than being half-loaded.
@@ -120,4 +123,6 @@ python3 tools/export_tests.py data/subjects/*.json > output.txt
 Writes every test as printable text followed by its answer key, for revising on
 paper. `tools/split_tests.py` is the one-shot migration that produced
 `data/subjects/` from the original flat `tests.json`; it is kept only so that
-step stays reproducible.
+step stays reproducible. It no longer reproduces `data/subjects/` in full —
+`AI_6` was recovered later from a legacy `~/.config/pretested/tests.json` and
+merged in by hand.

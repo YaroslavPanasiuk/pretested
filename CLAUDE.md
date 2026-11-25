@@ -5,8 +5,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## What this is
 
 "Pretested" — a GTK4 (PyGObject) desktop quiz app for drilling multiple-choice
-exam banks, grouped into subjects that each hold several tests. Shipped banks
-are Ukrainian-language university tests. Packaged with Nix flakes. See
+exam banks, grouped into subjects that each hold several tests. The repo ships
+one subject with 8 tests (660 Ukrainian-language university questions); the
+subject layer exists so more can be added. Packaged with Nix flakes. See
 `README.md` for user-facing behaviour, the bank format, and key bindings.
 
 ## Commands
@@ -87,10 +88,15 @@ the old `tests.json` and renames it aside.
 ### Question identity
 
 `question_id()` is `sha1(question_text)[:12]`. Content-addressed deliberately:
-it needed no edits to the 560 shipped questions and survives shuffling and
+it needed no edits to the shipped questions and survives shuffling and
 reordering, which is what keeps results attached to a question. Rewording a
-question resets its history. A test asserts all shipped ids are unique — a
-collision would silently merge two questions' results.
+question resets its history.
+
+The same question text in two tests intentionally shares one id and one
+history — the shipped banks contain such a pair (AI_5 and AI_6 ask it with
+different distractors). So the invariant under test is that distinct texts
+map to distinct ids, i.e. no hash collisions; it is *not* that every question
+instance is unique.
 
 ### Lock and reveal rules
 

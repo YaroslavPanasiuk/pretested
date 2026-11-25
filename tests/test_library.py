@@ -56,11 +56,38 @@ def test_question_id_is_independent_of_position():
     assert sorted(q.qid for q in a.questions) == sorted(q.qid for q in b.questions)
 
 
-def test_shipped_banks_have_unique_question_ids():
-    """A collision would silently merge two questions' results."""
+def test_shipped_banks_have_no_question_id_collisions():
+    """Two *different* questions sharing an id would merge their results.
+
+    The same question appearing in two tests is fine and deliberate -- it is
+    one question, so it shares an id and a history. What must never happen is
+    two distinct texts hashing to the same id.
+    """
     lib = load_library(user_dir="/nonexistent", migrate_legacy=False)
-    qids = [q.qid for q in lib.all_questions()]
-    assert len(set(qids)) == len(qids)
+    questions = lib.all_questions()
+    texts = {q.text for q in questions}
+    qids = {q.qid for q in questions}
+    assert len(texts) == len(qids)
+
+
+def test_a_question_repeated_across_tests_shares_one_id():
+    """Getting it right in one test must count for the other."""
+    repeated = {
+        "name": "S",
+        "tests": [
+            {"name": "T1", "questions": [
+                {"question": "shared?", "options": [{"А": "a"}, {"Б": "b"}],
+                 "answer": "Б"}]},
+            {"name": "T2", "questions": [
+                {"question": "shared?", "options": [{"А": "x"}, {"Б": "y"}],
+                 "answer": "Б"}]},
+        ],
+    }
+    subject = parse_subject(repeated)
+    first, second = subject.tests[0].questions[0], subject.tests[1].questions[0]
+    assert first.qid == second.qid
+    # ...even though the distractors differ between the two papers.
+    assert first.options != second.options
 
 
 def test_slugify():

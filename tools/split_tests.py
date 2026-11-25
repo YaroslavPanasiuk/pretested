@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
-"""One-shot migration: split the flat tests.json into per-subject files.
+"""One-shot migration: convert the flat tests.json into a subject file.
 
-The original tests.json held a single flat list of tests that already mixed two
-subjects. This script regroups them into data/subjects/<id>.json. It is kept in
-the tree so the migration is reproducible, but it only ever needed to run once.
+The original tests.json held a bare list of tests with no subject layer. This
+script regroups them into data/subjects/<id>.json. It is kept in the tree so
+the migration stays reproducible, but it only ever needed to run once.
+
+Note that it cannot reproduce data/subjects/ in full any more: AI_6 was
+recovered later from a user's legacy ~/.config/pretested/tests.json, which was
+never part of the repo, and merged in by hand.
 
 Usage: python3 tools/split_tests.py tests.json data/subjects
 """
@@ -17,12 +21,11 @@ SUBJECTS = [
     {
         "id": "methodology",
         "name": "Методологія наукових досліджень",
-        "tests": ["Методологія наукових досліджень 2025", "Приклад МНД 2025"],
-    },
-    {
-        "id": "ai",
-        "name": "AI",
-        "tests": ["AI_1", "AI_2", "AI_3", "AI_4", "AI_5"],
+        "tests": [
+            "Методологія наукових досліджень 2025",
+            "Приклад МНД 2025",
+            "AI_1", "AI_2", "AI_3", "AI_4", "AI_5",
+        ],
     },
 ]
 
